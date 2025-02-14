@@ -1,0 +1,293 @@
+nsim=1000
+N=20000
+
+popaprob=c(0.02,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.98)
+maf=0.05
+# maf=0.2
+  
+trutha=samplea=bestguessa=alproba=matrix(NA,nrow=nsim,ncol=2*13)
+truthb=sampleb=bestguessb=alprobb=matrix(NA,nrow=nsim,ncol=2*13)
+for(cases in 1:13){
+  print(cases)
+  for(seed in 1:nsim){
+    #if(seed%%10==0) print(seed)
+    set.seed(seed*cases)
+    popa1=rbeta(N, popaprob[cases], 1-popaprob[cases])
+    popa2=rbeta(N, popaprob[cases], 1-popaprob[cases])
+    truepopa1<-sapply(1:N,function(i){sample(c(1,0),1,prob=c(popa1[i],1-popa1[i]))})
+    truepopa2<-sapply(1:N,function(i){sample(c(1,0),1,prob=c(popa2[i],1-popa2[i]))})
+    fst=0.2
+    f1=runif(1,maf,1-maf)
+    f2=runif(1,maf,1-maf)
+    truef1=rbeta(1,f1*(1-fst)/fst,f1*(1-fst)/fst)
+    truef2=rbeta(1,f2*(1-fst)/fst,f2*(1-fst)/fst)
+    while(truef1<maf || truef1>1-maf) {truef1=rbeta(1,f1*(1-fst)/fst,f1*(1-fst)/fst)}
+    while(truef2<maf || truef2>1-maf) {truef2=rbeta(1,f2*(1-fst)/fst,f2*(1-fst)/fst)}
+    truef=c(truef1,truef2)
+    generaw1=sapply(1:N,function(i){sample(c(1,0),1,prob=c(truef[truepopa1[i]+1],1-truef[truepopa1[i]+1]))})
+    generaw2=sapply(1:N,function(i){sample(c(1,0),1,prob=c(truef[truepopa2[i]+1],1-truef[truepopa2[i]+1]))})
+    
+    popb1=1-popa1
+    popb2=1-popa2
+    
+    
+    truepopb1=1-truepopa1
+    truepopb2=1-truepopa2
+    
+    alleleproba=(generaw1*popa1+generaw2*popa2)
+    
+    alleleprobb=(generaw1*popb1+generaw2*popb2)
+    
+    truedosagea=generaw1*truepopa1+generaw2*truepopa2
+    truedosageb=generaw1*truepopb1+generaw2*truepopb2
+    
+    y=truedosagea*5+truedosageb*1+rnorm(N,0,15)
+    
+    gene=truedosagea+truedosageb
+    
+    lp=(popa1+popa2)/2
+    
+    truemodel=summary(lm(y~truedosagea+truedosageb+lp))
+    trutha[seed,c(cases,13+cases)]=truemodel$coefficients["truedosagea",c(1,2)]
+    truthb[seed,c(cases,13+cases)]=truemodel$coefficients["truedosageb",c(1,2)]
+    
+    alprobmodel=summary(lm(y~alleleproba+alleleprobb+lp))
+    alproba[seed,c(cases,13+cases)]=alprobmodel$coefficients["alleleproba",c(1,2)]
+    alprobb[seed,c(cases,13+cases)]=alprobmodel$coefficients["alleleprobb",c(1,2)]
+    
+    ##simulation sample
+    set.seed(seed)
+    samplepopa1<-sapply(1:N,function(i){sample(c(1,0),1,prob=c(popa1[i],1-popa1[i]))})
+    samplepopa2<-sapply(1:N,function(i){sample(c(1,0),1,prob=c(popa2[i],1-popa2[i]))})
+    samplepopb1=1-samplepopa1
+    samplepopb2=1-samplepopa2
+    
+    sampledosagea=generaw1*samplepopa1+generaw2*samplepopa2
+    sampledosageb=generaw1*samplepopb1+generaw2*samplepopb2
+    
+    samplemodel=summary(lm(y~sampledosagea+sampledosageb+lp))
+    
+    samplea[seed,c(cases,13+cases)]=samplemodel$coefficients["sampledosagea",c(1,2)]
+    sampleb[seed,c(cases,13+cases)]=samplemodel$coefficients["sampledosageb",c(1,2)]
+    
+    ##best guess
+    bgpopa1<-sapply(1:N,function(i){
+      if(popa1[i]>=0.5){
+        1
+      }else{
+        0
+      }
+    })
+    
+    bgpopa2<-sapply(1:N,function(i){
+      if(popa2[i]>=0.5){
+        1
+      }else{
+        0
+      }
+    })
+    
+    bgpopb1=1-bgpopa1
+    bgpopb2=1-bgpopa2
+    
+    bgdosagea=generaw1*bgpopa1+generaw2*bgpopa2
+    bgdosageb=generaw1*bgpopb1+generaw2*bgpopb2
+    
+    bgmodel=summary(lm(y~bgdosagea+bgdosageb+lp))
+    
+    bestguessa[seed,c(cases,13+cases)]=bgmodel$coefficients["bgdosagea",c(1,2)]
+    bestguessb[seed,c(cases,13+cases)]=bgmodel$coefficients["bgdosageb",c(1,2)]
+  }
+}
+
+all=cbind(trutha,alproba,samplea,bestguessa,truthb,alprobb,sampleb,bestguessb)
+#write.csv(cbind(trutha,alproba,samplea,bestguessa,truthb,alprobb,sampleb,bestguessb),paste0("Tractor_compare_sim_",maf,".csv"))
+
+#all=read.csv(paste0("Tractor_compare_sim_",maf,".csv"))[,-1]
+trutha=all[,1:26]
+alproba=all[,27:52]
+samplea=all[,53:78]
+bestguessa=all[,79:104]
+truthb=all[,1:26+104]
+alprobb=all[,27:52+104]
+sampleb=all[,53:78+104]
+bestguessb=all[,79:104+104]
+
+
+meantrutha=colMeans(trutha[,1:13])
+meanalproba=colMeans(alproba[,1:13])
+meansamplea=colMeans(samplea[,1:13])
+meanbestguessa=colMeans(bestguessa[,1:13])
+
+meantruthb=colMeans(truthb[,1:13])
+meanalprobb=colMeans(alprobb[,1:13])
+meansampleb=colMeans(sampleb[,1:13])
+meanbestguessb=colMeans(bestguessb[,1:13])
+
+meantruthsda=colMeans(trutha[,14:26])
+meanalprobsda=colMeans(alproba[,14:26])
+meansamplesda=colMeans(samplea[,14:26])
+meanbestguesssda=colMeans(bestguessa[,14:26])
+
+meantruthsdb=colMeans(truthb[,14:26])
+meanalprobsdb=colMeans(alprobb[,14:26])
+meansamplesdb=colMeans(sampleb[,14:26])
+meanbestguesssdb=colMeans(bestguessb[,14:26])
+
+
+alldata1=data.frame(popa=as.factor(rep(c(0.02,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.98),8)),
+                   est=c(meantrutha,meanalproba,meansamplea,meanbestguessa,
+                         meantruthb,meanalprobb,meansampleb,meanbestguessb),
+                   sd=c(meantruthsda,meanalprobsda,meansamplesda,meanbestguesssda,
+                         meantruthsdb,meanalprobsdb,meansamplesdb,meanbestguesssdb),
+                   Method=factor(rep(c("TRUTH","RAW","SAMPLING","BESTGUESS",
+                                       "TRUTH","RAW","SAMPLING","BESTGUESS"),each=13),
+                                 levels=c("TRUTH","RAW","BESTGUESS","SAMPLING")))
+library(ggplot2)
+library(cowplot)
+
+a=
+  ggplot(alldata1[1:52,], aes(x=popa, y=est, color=Method)) +
+  geom_point(size=4) +  
+  geom_hline(yintercept=5, color="black",length=1.5) +  
+  labs(
+    x=expression(E(X[1]) ~ "-- Average probability of ancestry 1"),
+    y=expression(E(beta[1]) ~ "-- Average effect size of ancestry 1"),
+    title="a"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA),
+    legend.background = element_rect(color = "black"),
+    legend.key.height = unit(1, "lines"),
+    legend.key.width = unit(1, "lines"),
+    plot.title = element_text(size = 20, hjust = 0),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 22),
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 20),
+    axis.text.x = element_text(size = 18),
+    axis.text.y = element_text(size = 18),
+    plot.margin = unit(c(1, 1, 0.1, 1), "lines")
+  )
+
+alldata2=data.frame(popa=as.factor(rep(c(0.98,0.95,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1,0.05,0.02),8)),
+                    est=c(meantrutha,meanalproba,meansamplea,meanbestguessa,
+                          meantruthb,meanalprobb,meansampleb,meanbestguessb),
+                    sd=c(meantruthsda,meanalprobsda,meansamplesda,meanbestguesssda,
+                         meantruthsdb,meanalprobsdb,meansamplesdb,meanbestguesssdb),
+                    Method=factor(rep(c("TRUTH","RAW","SAMPLING","BESTGUESS",
+                                        "TRUTH","RAW","SAMPLING","BESTGUESS"),each=13),
+                                  levels=c("TRUTH","RAW","BESTGUESS","SAMPLING")))
+
+b=
+  ggplot(alldata2[53:104,], aes(x=popa, y=est, color=Method)) +
+  geom_point(size=4) +  
+  geom_hline(yintercept=1, color="black",length=1.5) +  
+  labs(
+    x=expression(E(X[2]) ~ "-- Average probability of ancestry 2"),
+    y=expression(E(beta[2]) ~ "-- Average effect size of ancestry 2"),
+    title="b"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA),
+    legend.background = element_rect(color = "black"),
+    legend.key.height = unit(1, "lines"),
+    legend.key.width = unit(1, "lines"),
+    plot.title = element_text(size = 20, hjust = 0),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 22),
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 20),
+    axis.text.x = element_text(size = 18),
+    axis.text.y = element_text(size = 18),
+    plot.margin = unit(c(1, 1, 0.1, 1), "lines")
+  )
+
+legend <- get_legend(
+  b + 
+    theme(
+      legend.position = "bottom",
+      legend.direction = "horizontal",
+      legend.box = "horizontal",
+      legend.title = element_text(size = 22),
+      legend.text = element_text(size = 18)
+    )
+)
+
+a_no_legend <- a + theme(legend.position = "none")
+b_no_legend <- b + theme(legend.position = "none")
+
+c_no_legend=
+  ggplot(alldata1[1:52,], aes(x=popa, y=sd, color=Method)) +
+  geom_point(size=4) +  
+  labs(
+    x=expression(E(X[1]) ~ "-- Average probability of ancestry 1"),
+    y=expression(E(se(beta[1])) ~ "-- Average standard error of effect size of ancestry 1"),
+    title="c"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA),
+    legend.background = element_rect(color = "black"),
+    legend.key.height = unit(1, "lines"),
+    legend.key.width = unit(1, "lines"),
+    plot.title = element_text(size = 20, hjust = 0),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 22),
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 18),
+    axis.text.x = element_text(size = 18),
+    axis.text.y = element_text(size = 18),
+    legend.position = "none",
+    plot.margin = unit(c(1, 1, 0.1, 1), "lines")
+  )
+
+d_no_legend=
+  ggplot(alldata2[53:104,], aes(x=popa, y=sd, color=Method)) +
+  geom_point(size=4) +  
+  labs(
+    x=expression(E(X[2]) ~ "-- Average probability of ancestry 2"),
+    y=expression(E(se(beta[2])) ~ "-- Average standard error of effect size of ancestry 2"),
+    title="d"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA),
+    legend.background = element_rect(color = "black"),
+    legend.key.height = unit(1, "lines"),
+    legend.key.width = unit(1, "lines"),
+    plot.title = element_text(size = 20, hjust = 0),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 22),
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 18),
+    axis.text.x = element_text(size = 18),
+    axis.text.y = element_text(size = 18),
+    legend.position = "none",
+    plot.margin = unit(c(1, 1, 0.1, 1), "lines")
+  )
+
+
+plots_combined <- plot_grid(
+  a_no_legend, b_no_legend,
+  c_no_legend, d_no_legend,
+  nrow=2,
+  ncol = 2,
+  align = "h",
+  axis = "b",
+  rel_widths = c(1, 1)
+)
+
+final_plot <- plot_grid(
+  plots_combined,
+  legend,
+  ncol = 1,
+  rel_heights = c(1, 0.1)
+)
+
+ggsave(paste0("sim_Tractor_",maf,".pdf"), final_plot, height = 18, width = 17)
+
+
+
